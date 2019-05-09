@@ -3,6 +3,8 @@ package server
 import (
 	"context"
 	"fmt"
+	"github.com/golang/protobuf/ptypes"
+	"github.com/golang/protobuf/ptypes/wrappers"
 	"io"
 	"log"
 	"net"
@@ -111,12 +113,42 @@ func TestSQL(t *testing.T) {
 	for _, s := range []string{testQuerySQL, testExecuteSQL, testExtendedSQL} {
 		stream, err := c.Run(ctx, &pb.Request{Sql: s})
 		a.NoError(err)
-		for {
-			_, err := stream.Recv()
-			if err == io.EOF {
-				break
+		first, err := stream.Recv()
+		a.NoError(err)
+		if first.GetMessage() != nil {
+			fmt.Println(first.GetMessage())
+			for {
+				message, err := stream.Recv()
+				if err == io.EOF {
+					break
+				}
+				a.NoError(err)
+				fmt.Println(message.GetMessage())
 			}
-			a.NoError(err)
+		} else {
+			head := first.GetHead()
+			a.NotNil(head)
+			for {
+				row, err := stream.Recv()
+				for _, a := range row.GetRow().GetData() {
+					switch a.TypeUrl {
+					case "type.googleapis.com/google.protobuf.BoolValue":
+						b := wrappers.BoolValue{}
+						ptypes.UnmarshalAny(a, &b)
+						fmt.Println(b)
+					case "type.googleapis.com/proto.Row.Null":
+						b := pb.Row_Null{}
+						ptypes.UnmarshalAny(a, &b)
+						fmt.Println("Null: ", b)
+					default:
+						fmt.Println("Support more builtin types")
+					}
+				}
+				if err == io.EOF {
+					break
+				}
+				a.NoError(err)
+			}
 		}
 	}
 }
