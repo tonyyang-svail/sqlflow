@@ -27,6 +27,7 @@ type Writer struct {
 	table   string
 	buf     []byte
 	flushID int
+	err     error
 }
 
 // Create creates a new table or truncates an existing table and
@@ -38,11 +39,14 @@ func Create(db *sql.DB, driver, table string) (*Writer, error) {
 	if e := createTable(db, driver, table); e != nil {
 		return nil, fmt.Errorf("create: %v", e)
 	}
-	return &Writer{db, table, make([]byte, 0, bufSize), 0}, nil
+	return &Writer{db, table, make([]byte, 0, bufSize), 0, nil}, nil
 }
 
 // Write write bytes to sqlfs and returns (num_bytes, error)
 func (w *Writer) Write(p []byte) (n int, e error) {
+	if w.err != nil {
+		return -1, w.err
+	}
 	n = 0
 	for len(p) > 0 {
 		fill := bufSize - len(w.buf)
@@ -63,11 +67,18 @@ func (w *Writer) Write(p []byte) (n int, e error) {
 
 // Close the connection of the sqlfs
 func (w *Writer) Close() error {
+	if w.err != nil {
+		return w.err
+	}
 	if e := w.flush(); e != nil {
 		return fmt.Errorf("close failed: %v", e)
 	}
 	w.db = nil // mark closed
 	return nil
+}
+
+func (w *Writer) Error() error {
+	return w.err
 }
 
 func (w *Writer) flush() error {
@@ -80,7 +91,8 @@ func (w *Writer) flush() error {
 		query := fmt.Sprintf("INSERT INTO %s (id, block) VALUES(%d, '%s')",
 			w.table, w.flushID, block)
 		if _, e := w.db.Exec(query); e != nil {
-			return fmt.Errorf("flush to %s, error:%v", w.table, e)
+			w.err = fmt.Errorf("flush to %s, error:%v", w.table, e)
+			return w.err
 		}
 		w.buf = w.buf[:0]
 		w.flushID++
