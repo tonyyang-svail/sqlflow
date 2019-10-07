@@ -11,13 +11,18 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-
+# Start MySQL service in entrypoint since it requires root
 set -e
 echo begin entrypoint.sh
 service mysql start
 echo end entrypoint.sh
 
-# set -- gosu jovyan "$@"
-# su - jovyan -c $@
-exec "$@"
+# Save command line to a temporary file to avoid arguemnt confliction in su --login
+echo $@ > /tmp/start.sh
+chmod 777 /tmp/start.sh
+
+# Switch to user jovyan and execute the command
+echo "running command $@"
+su --login jovyan -c "source /miniconda/bin/activate sqlflow-dev && /tmp/start.sh"
+# su jovyan -c '$@'
 
