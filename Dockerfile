@@ -8,8 +8,7 @@ ENV HOME /home/${NB_USER}
 
 RUN adduser --disabled-password \
     --gecos "Default user" \
-    --uid ${NB_UID} \
-    ${NB_USER}
+    --uid 1000 jovyan
 
 # autoload IPython magic command
 ENV IPYTHON_STARTUP ${HOME}/.ipython/profile_default/startup/
