@@ -38,6 +38,38 @@ func TestParseWithCalcite(t *testing.T) {
 	commonTestCases("calcite", assert.New(t))
 }
 
+func TestEmptyLines(t *testing.T) {
+	a := assert.New(t)
+
+	sqlProgram := `SELECT * FROM iris.train
+TO TRAIN DNNClassifier
+WITH
+	model.n_classes = 3,
+	model.hidden_units = [10, 20],
+	train.num_workers=2,
+	train.num_ps=2,
+	train.save_checkpoints_steps=20,
+	train.epoch=10,
+	train.batch_size=4,
+	train.verbose=2
+COLUMN sepal_length, sepal_width, petal_length, petal_width
+LABEL class
+INTO my_dnn_model;
+
+SELECT * FROM iris.test
+TO PREDICT iris.predict.class
+USING my_dnn_model;`
+	s, err := Parse("calcite", sqlProgram)
+	a.NoError(err)
+	a.Equal(2, len(s))
+	a.NotNil(s[0].SQLFlowSelectStmt)
+	a.Equal(`SELECT * FROM iris.train
+`, s[0].SQLFlowSelectStmt.StandardSelect.String())
+	a.NotNil(s[1].SQLFlowSelectStmt)
+	a.Equal(`SELECT * FROM iris.test
+`, s[1].SQLFlowSelectStmt.StandardSelect.String())
+}
+
 func commonTestCases(dbms string, a *assert.Assertions) {
 	extendedSQL := `to predict a using b`
 
